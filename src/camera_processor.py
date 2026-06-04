@@ -23,9 +23,44 @@ blue_upper = np.array([120, 255, 255], np.uint8)
 def calibrateColor():
     pass
 
+def maskFrame(frame, mask_color:list[int,int,int],color_radius:int):
+    hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    #TODO: better way to make colors alike
+    color_lower = np.array([x-color_radius if x-color_radius>0 else x-color_radius+255 for x in mask_color], np.uint8)
+    color_upper = np.array([mask_color[0]+color_radius,255,255], np.uint8)
+    color_lower = np.array([136, 87, 111], np.uint8)
+    color_upper = np.array([180, 255, 255], np.uint8)
+    color_mask = cv2.inRange(hsv_frame, color_lower, color_upper)
+
+    color_mask = cv2.dilate(color_mask, kernal)
+    res_color = cv2.bitwise_and(frame, frame, mask=color_mask)
+
+    return color_mask
+
+def getItemPos(frame, color_mask, label:str="Item"):
+    #x=y=w=h = None
+    items = []
+    contours, hierarchy = cv2.findContours(color_mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+    for pic, contour in enumerate(contours):
+        area = cv2.contourArea(contour)
+        if (area > 300):
+            x, y, w, h = cv2.boundingRect(contour)
+            frame = cv2.rectangle(frame, (x, y),
+                                    (x + w, y + h),
+                                    (0, 0, 255), 2)
+
+            cv2.putText(frame, label, (x, y),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1.0,
+                        (0, 0, 255))
+
+            items.append([label,x,y,w,h])
+
+    return frame, items
+
+
 
 def main():
-    print(True)
     print(f"Connecting to ESP32-S3 stream at: {STREAM_URL}")
     print("Press 'q' in the graphics window to exit.")
 
@@ -38,8 +73,10 @@ def main():
 
     bytes_accumulator = bytes()
 
+
     # Read the stream chunk-by-chunk
     for chunk in stream.iter_content(chunk_size=1024):
+        
         bytes_accumulator += chunk
         
         # JPEG images always start with the bytes 0xff 0xd8 and end with 0xff 0xd9
@@ -54,72 +91,25 @@ def main():
             
             # Decode the JPEG bytes into an OpenCV image array
             frame = cv2.imdecode(np.frombuffer(jpg_data, dtype=np.uint8), cv2.IMREAD_COLOR)
-            hsvFrame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
-            # define mask
-            red_mask = cv2.inRange(hsvFrame, red_lower, red_upper)
-            green_mask = cv2.inRange(hsvFrame, green_lower, green_upper)
-            blue_mask = cv2.inRange(hsvFrame, blue_lower, blue_upper)
+            items = []
+            
+            red_mask = maskFrame(frame,[140,30,30],50)
+            frame, _items = getItemPos(frame,red_mask,"Red Color")
 
-            # red color
-            red_mask = cv2.dilate(red_mask, kernal)
-            res_red = cv2.bitwise_and(frame, frame, mask=red_mask)
+            items += _items
 
-            # green color
-            green_mask = cv2.dilate(green_mask, kernal)
-            res_green = cv2.bitwise_and(frame, frame, mask=green_mask)
+            red_mask = maskFrame(frame,[100,30,30],50)
+            frame, _items = getItemPos(frame,red_mask,"Blue Color")
 
-            # blue color
-            blue_mask = cv2.dilate(blue_mask, kernal)
-            res_blue = cv2.bitwise_and(frame, frame, mask=blue_mask)
+            items += _items
 
-            contours, hierarchy = cv2.findContours(red_mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+            items2 = [i[1:] for i in items if i[0]=="Red Color"]
+            if _items != []:
+                print(items)
+                print(items2)
 
-            for pic, contour in enumerate(contours):
-                area = cv2.contourArea(contour)
-                if (area > 300):
-                    x, y, w, h = cv2.boundingRect(contour)
-                    frame = cv2.rectangle(frame, (x, y),
-                                            (x + w, y + h),
-                                            (0, 0, 255), 2)
-
-                    cv2.putText(frame, "Red Colour", (x, y),
-                                cv2.FONT_HERSHEY_SIMPLEX, 1.0,
-                                (0, 0, 255))
-
-            # Creating contour to track green color
-            contours, hierarchy = cv2.findContours(green_mask,
-                                                cv2.RETR_TREE,
-                                                cv2.CHAIN_APPROX_SIMPLE)
-
-            for pic, contour in enumerate(contours):
-                area = cv2.contourArea(contour)
-                if (area > 300):
-                    x, y, w, h = cv2.boundingRect(contour)
-                    frame = cv2.rectangle(frame, (x, y),
-                                            (x + w, y + h),
-                                            (0, 255, 0), 2)
-
-                    cv2.putText(frame, "Green Colour", (x, y),
-                                cv2.FONT_HERSHEY_SIMPLEX,
-                                1.0, (0, 255, 0))
-
-            # Creating contour to track blue color
-            contours, hierarchy = cv2.findContours(blue_mask,
-                                                cv2.RETR_TREE,
-                                                cv2.CHAIN_APPROX_SIMPLE)
-            for pic, contour in enumerate(contours):
-                area = cv2.contourArea(contour)
-                if (area > 300):
-                    x, y, w, h = cv2.boundingRect(contour)
-                    frame = cv2.rectangle(frame, (x, y),
-                                            (x + w, y + h),
-                                            (255, 0, 0), 2)
-
-                    cv2.putText(frame, "Blue Colour", (x, y),
-                                cv2.FONT_HERSHEY_SIMPLEX,
-                                1.0, (255, 0, 0))
-
+            
             
             
             if frame is not None:
