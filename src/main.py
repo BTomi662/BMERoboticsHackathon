@@ -47,6 +47,8 @@ def get_human_move(board, player, phase):
                     "❌ Nodes are not adjacent! You can only slide to neighbors in Phase 2.")
                 continue
 
+            log.append(inp)
+
             return from_nid, to_nid
         except ValueError:
             print("❌ Please enter valid integer node IDs.")
@@ -103,6 +105,8 @@ def handle_human_mill_removal(board, human_player, ai_player):
                     f"❌ You cannot remove a piece inside {ai_player}'s mill unless ALL their pieces are in mills.")
                 continue
 
+            log.append(r_nid)
+
             return r_nid
         except ValueError:
             print("❌ Please enter a valid integer node ID.")
@@ -121,6 +125,8 @@ def main():
     # AI name is locked down as a constant str
     AI_NAME = "Joe"
     HUMAN_NAME = human_name
+    log.append(
+        f"Game started with Human Player: {HUMAN_NAME} and AI Player: {AI_NAME}")
 
     # 2. Initialize GameBoard with our names
     board = GameBoard()
@@ -145,7 +151,9 @@ def main():
         # Check overall win states
         winner = board.check_win()
         if winner:
-            print(f"\n🎉 GAME OVER! {winner} wins the game! 🎉")
+            message = f"🎉 GAME OVER! {winner} wins the game! 🎉"
+            log.append(message)
+            print(message)
             break
 
         # ==========================================
@@ -183,10 +191,14 @@ def main():
         ai_action = ai_engine.get_best_move(board)
 
         if ai_action is None:
-            print(f"🤖 {AI_NAME} has no legal moves left! {HUMAN_NAME} wins!")
+            message = f"🤖 {AI_NAME} has no legal moves left! {HUMAN_NAME} wins!"
+            log.append(message)
+            print(message)
             break
 
-        print(f"🤖 {AI_NAME} Action Selected: {ai_action}")
+        message = f"🤖 {AI_NAME} Action Selected: {ai_action}"
+        log.append(message)
+        print(message)
 
         # Execute structural step
         if ai_action["from"] is None:
@@ -196,10 +208,13 @@ def main():
 
         # Execute deletion step if flagged by evaluation logic
         if ai_action["remove"] is not None:
-            print(
-                f"🔥 {AI_NAME} formed a mill and removed {HUMAN_NAME}'s piece at node: {ai_action['remove']}")
+            message = f"🔥 {AI_NAME} formed a mill and removed {HUMAN_NAME}'s piece at node: {ai_action['remove']}"
+            log.append(message)
+            print(message)
             board.remove_piece(ai_action["remove"], HUMAN_NAME)
 
 
 if __name__ == "__main__":
+    log = []
     main()
+    print(log)
