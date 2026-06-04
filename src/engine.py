@@ -22,20 +22,16 @@ class Engine:
 
     def _lazy_init(self, game_board):
         """Dynamically builds lookup maps by reading the GameBoard's architecture."""
-        # 1. Create a stable mapping of Node IDs to array indices (0-23)
-        node_ids = [
-            11, 12, 13,  # Row 1 (Top Outer)
-            21, 22, 23,  # Row 2 (Top Middle)
-            31, 32, 33,  # Row 3 (Top Inner)
-            41, 42, 43,  # Row 4 (Left Crossbar)
-            # Row 5 (Right Crossbar) -> Sits naturally right after row 4!
-            51, 52, 53,
-            61, 62, 63,  # Row 6 (Bottom Inner)
-            71, 72, 73,  # Row 7 (Bottom Middle)
-            81, 82, 83   # Row 8 (Bottom Outer)
-        ]
-        self.NODE_MAP = {node_id: i for i, node_id in enumerate(node_ids)}
-        self.REV_NODE_MAP = {i: node_id for i, node_id in enumerate(node_ids)}
+        self.NODE_MAP = {
+            11: 0,  14: 1,  17: 2,
+            22: 3,  24: 4,  26: 5,
+            33: 6,  34: 7,  35: 8,
+            41: 9,  42: 10, 43: 11,  45: 12, 46: 13, 47: 14,
+            53: 15, 54: 16, 55: 17,
+            62: 18, 64: 19, 66: 20,
+            71: 21, 74: 22, 77: 23
+        }
+        self.REV_NODE_MAP = {v: k for k, v in self.NODE_MAP.items()}
 
         # 2. Automatically translate the 16 Mills into array index tuples
         self.MILLS = [

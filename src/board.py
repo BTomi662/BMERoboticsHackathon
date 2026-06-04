@@ -13,91 +13,95 @@ class GameBoard:
         self.active_pieces = {self.player1: 0, self.player2: 0}
 
         # Initialize nodes
-        for row in range(1, 9):
-            for node in range(1, 4):
-                node_id = int(f"{row}{node}")
-                self.board[node_id] = Node(row, node)
+        for row, cols in [(1, [1, 4, 7]), (2, [2, 4, 6]), (3, [3, 4, 5]),
+                          (4, [1, 2, 3, 5, 6, 7]),
+                          (5, [3, 4, 5]), (6, [2, 4, 6]), (7, [1, 4, 7])]:
+            for col in cols:
+                node_id = int(f"{row}{col}")
+                self.board[node_id] = Node(row, col)
 
-# =====================================================================
+        # =====================================================================
         # ALL HORIZONTAL CONNECTIONS (Left to Right rows)
         # =====================================================================
         # Row 1 (Top Outer)
-        self._connect(11, "right", 12)
-        self._connect(12, "right", 13)
+        self._connect(11, "right", 14)
+        self._connect(14, "right", 17)
 
         # Row 2 (Top Middle)
-        self._connect(21, "right", 22)
-        self._connect(22, "right", 23)
+        self._connect(22, "right", 24)
+        self._connect(24, "right", 26)
 
         # Row 3 (Top Inner)
-        self._connect(31, "right", 32)
-        self._connect(32, "right", 33)
+        self._connect(33, "right", 34)
+        self._connect(34, "right", 35)
 
-        # Row 4 (Left Crossbar)
+        # Row 4 (Left & Right Mid-line Crossbars)
         self._connect(41, "right", 42)
         self._connect(42, "right", 43)
+        # Note: Gap between 43 and 45 is a visual void, no connection!
+        self._connect(45, "right", 46)
+        self._connect(46, "right", 47)
 
-        # Row 5 (Right Crossbar)
-        self._connect(51, "right", 52)
-        self._connect(52, "right", 53)
+        # Row 5 (Bottom Inner)
+        self._connect(53, "right", 54)
+        self._connect(54, "right", 55)
 
-        # Row 6 (Bottom Inner)
-        self._connect(61, "right", 62)
-        self._connect(62, "right", 63)
+        # Row 6 (Bottom Middle)
+        self._connect(62, "right", 64)
+        self._connect(64, "right", 66)
 
-        # Row 7 (Bottom Middle)
-        self._connect(71, "right", 72)
-        self._connect(72, "right", 73)
-
-        # Row 8 (Bottom Outer)
-        self._connect(81, "right", 82)
-        self._connect(82, "right", 83)
+        # Row 7 (Bottom Outer)
+        self._connect(71, "right", 74)
+        self._connect(74, "right", 77)
 
         # =====================================================================
         # ALL VERTICAL CONNECTIONS (Top to Bottom columns)
         # =====================================================================
-        # Far Left Column
+        # Column 1 (Far Left)
         self._connect(11, "down", 41)
-        self._connect(41, "down", 81)
+        self._connect(41, "down", 71)
 
-        # Mid-Left Column
-        self._connect(21, "down", 42)
-        self._connect(42, "down", 71)
+        # Column 2 (Mid-Left)
+        self._connect(22, "down", 42)
+        self._connect(42, "down", 62)
 
-        # Near Left Column
-        self._connect(31, "down", 43)
-        self._connect(43, "down", 61)
+        # Column 3 (Near Left)
+        self._connect(33, "down", 43)
+        self._connect(43, "down", 53)
 
-        # Absolute Center Top Column
-        self._connect(12, "down", 22)
-        self._connect(22, "down", 32)
+        # Column 4 (Center Top Crossbar)
+        self._connect(14, "down", 24)
+        self._connect(24, "down", 34)
 
-        # Absolute Center Bottom Column
-        self._connect(62, "down", 72)
-        self._connect(72, "down", 82)
+        # Column 4 (Center Bottom Crossbar)
+        self._connect(54, "down", 64)
+        self._connect(64, "down", 74)
 
-        # Near Right Column
-        self._connect(33, "down", 51)
-        self._connect(51, "down", 63)
+        # Column 5 (Near Right)
+        self._connect(35, "down", 45)
+        self._connect(45, "down", 55)
 
-        # Mid-Right Column
-        # Middle square top right down to right crossbar middle
-        self._connect(23, "down", 52)
-        self._connect(52, "down", 73)
+        # Column 6 (Mid-Right)
+        self._connect(26, "down", 46)
+        self._connect(46, "down", 66)
 
-        # Far Right Column
-        self._connect(13, "down", 53)
-        self._connect(53, "down", 83)
-        # Definitive list of all 16 Mills on a Nine Men's Morris Board
+        # Column 7 (Far Right)
+        self._connect(17, "down", 47)
+        self._connect(47, "down", 77)
+
+        # =====================================================================
+        # 16 MILLS MAPPING
+        # =====================================================================
         self.MILLS = [
-            # Horizontal Mills
-            [11, 12, 13], [21, 22, 23], [31, 32, 33],
-            [41, 42, 43], [61, 62, 63],
-            [51, 52, 53], [71, 72, 73], [81, 82, 83],
-            # Vertical Mills
-            [11, 41, 81], [21, 42, 71], [31, 43, 61],
-            [12, 22, 32], [62, 72, 82],
-            [33, 51, 63], [23, 52, 73], [13, 53, 83]
+            # Horizontal Mills (Row-by-Row)
+            [11, 14, 17], [22, 24, 26], [33, 34, 35],
+            [41, 42, 43], [45, 46, 47],
+            [53, 54, 55], [62, 64, 66], [71, 74, 77],
+
+            # Vertical Mills (Column-by-Column)
+            [11, 41, 71], [22, 42, 62], [33, 43, 53],
+            [14, 24, 34], [54, 64, 74],
+            [35, 45, 55], [26, 46, 66], [17, 47, 77]
         ]
 
     def _connect(self, node1_id, direction, node2_id):
@@ -181,6 +185,16 @@ class GameBoard:
         # AI tip: A player also loses if they have no legal moves remaining.
         return None
 
+    def compare_boards(self, other_board):
+        """Compares this board state with another to determine if they are identical."""
+        move_between_boards = []
+        for node_id in self.board:
+            if self.board[node_id].player != other_board.board[node_id].player:
+                move_between_boards.append(
+                    (node_id, self.board[node_id].player, other_board.board[node_id].player))
+
+        return move_between_boards if len(move_between_boards) == 1 else None
+
     def display(self):
         def p(node_id):
             player = self.board[node_id].player
@@ -189,17 +203,17 @@ class GameBoard:
             return "J" if player == self.player1 else "M"
 
         print(f"""
-        {p(11)}-----------{p(12)}-----------{p(13)}
+        {p(11)}-----------{p(14)}-----------{p(17)}
         |           |           |
-        |   {p(21)}-------{p(22)}-------{p(23)}   |
+        |   {p(22)}-------{p(24)}-------{p(26)}   |
         |   |       |       |   |
-        |   |   {p(31)}---{p(32)}---{p(33)}   |   |
+        |   |   {p(33)}---{p(34)}---{p(35)}   |   |
         |   |   |       |   |   |
-        {p(41)}---{p(42)}---{p(43)}       {p(51)}---{p(52)}---{p(53)}
+        {p(41)}---{p(42)}---{p(43)}       {p(45)}---{p(46)}---{p(47)}
         |   |   |       |   |   |
-        |   |   {p(61)}---{p(62)}---{p(63)}   |   |
+        |   |   {p(53)}---{p(54)}---{p(55)}   |   |
         |   |       |       |   |
-        |   {p(71)}-------{p(72)}-------{p(73)}   |
+        |   {p(62)}-------{p(64)}-------{p(66)}   |
         |           |           |
-        {p(81)}-----------{p(82)}-----------{p(83)}
+        {p(71)}-----------{p(74)}-----------{p(77)}
             """)

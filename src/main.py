@@ -18,6 +18,7 @@ def get_human_piece_placement(board, player):
 def get_human_move(board, player, phase):
     """Prompts human to move a piece during Phase 2 or 3."""
     phase_str = "Phase 2 (Slide)" if phase == 2 else "Phase 3 (Fly)"
+
     while True:
         try:
             inp = input(
@@ -129,6 +130,7 @@ def main():
         f"Game started with Human Player: {HUMAN_NAME} and AI Player: {AI_NAME}")
 
     # 2. Initialize GameBoard with our names
+    past_board = GameBoard()
     board = GameBoard()
     board.player1 = AI_NAME
     board.player2 = HUMAN_NAME
