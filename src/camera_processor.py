@@ -11,10 +11,6 @@ STREAM_URL = "http://10.84.7.72"
 kernal = np.ones((5, 5), "uint8")
 
 
-mouse_x = 0
-mouse_y = 0
-
-
 class Player:
     def __init__(self, label, color):
         self.label = label
@@ -32,122 +28,71 @@ class Color:
             np.uint8([[self.BRG]]), cv2.COLOR_BGR2HSV)[0][0]
 
 
+
 RED = Color("RED", [0, 0, 230])
 GREEN = Color("GREEN", [0, 255, 0])
 BLUE = Color("BLUE", [255, 0, 0])
 YELLOW = Color("YELLOW", [0, 255, 255])
 COLORS: list[Color] = [RED, GREEN, BLUE, YELLOW]
 
-CALIBRATION_COLOR = YELLOW
+CALIBRATION_COLOR = GREEN
 
 HUMAN = Player("human", RED)
 ROBOT = Player("robot", BLUE)
 PLAYERS = [HUMAN, ROBOT]
 
 
-def getMousePos(event, x, y, flags, param):
-    global mouse_x, mouse_y
-    if event == cv2.EVENT_MOUSEMOVE:
-        mouse_x, mouse_y = x, y
 
 
-def calibrateColor(frame):
-    color = frame[mouse_x, mouse_y]
-    print(color)
-    color = cv2.cvtColor(np.uint8([[color]]), cv2.COLOR_BGR2HSV)[0][0]
-    return color
-
-
-def maskFrame(frame, mask_color, radius: int):
-    hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-
-    color_lower = np.array([(mask_color.HSV[0]-radius) %
-                           180, 80, 60], np.uint8)
-    color_upper = np.array([(mask_color.HSV[0]+radius) %
-                           180, 255, 255], np.uint8)
-
-    color_mask = cv2.inRange(hsv_frame, color_lower, color_upper)
-
-    color_mask = cv2.dilate(color_mask, kernal)
-    res_color = cv2.bitwise_and(frame, frame, mask=color_mask)
-
-    return color_mask
-
-
-def getColorPos(frame, color_mask, label: str = "Item"):
-    items = []
-    contours, hierarchy = cv2.findContours(
-        color_mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-
-    for pic, contour in enumerate(contours):
-        area = cv2.contourArea(contour)
-        if (area > 300):
-            x, y, w, h = cv2.boundingRect(contour)
-            frame = cv2.rectangle(frame, (x, y),
-                                  (x + w, y + h),
-                                  (0, 0, 255), 2)
-            frame = cv2.circle(frame, (x+w//2, y+h//2), 5, (0, 0, 255), -1)
-
-            cv2.putText(frame, label, (x, y),
-                        cv2.FONT_HERSHEY_SIMPLEX, 1.0,
-                        (0, 0, 255))
-
-            items.append([x+w//2, y+h//2])
-
-    return frame, items
-
-
-def calibrateLength(frame, calib_color):
-    calib_mask = maskFrame(frame, calib_color, 15)
-    frame, calib_points = getColorPos(frame, calib_mask, "Calibration Points")
-
+def calibrateLength(frame, calib_points):
     if len(calib_points) != 4:
-        print("Calibration error: Not exactly 4 points found. Detected:",
-              len(calib_points))
+        print("Calibration error: Not exactly 4 points found. Detected:", len(calib_points))
         return frame, None, None, None
 
-    # Convert to a numpy array for easy manipulation
-    pts = np.array(calib_points)
+    # 1. Convert to a numpy float32 array for precise sorting
+    pts = np.array(calib_points, dtype=np.float32)
 
-    # Sort based on x + y sum
-    # Top-Left will have the smallest sum, Bottom-Right will have the largest sum
-    sum_pts = pts.sum(axis=1)
-    P1 = pts[np.argmin(sum_pts)].tolist()  # Top-Left
-    P3 = pts[np.argmax(sum_pts)].tolist()  # Bottom-Right
+    # 2. Sort the points by their X-coordinates (left to right)
+    # The two left-most points will be indices 0 and 1
+    # The two right-most points will be indices 2 and 3
+    x_sorted = pts[np.argsort(pts[:, 0]), :]
 
-    # Sort based on x - y difference
-    # Top-Right will have the largest difference, Bottom-Left will have the smallest
-    diff_pts = np.diff(pts, axis=1).flatten()
-    # Bottom-Left (Large y, Small x -> y-x is max, x-y is min)
-    P2 = pts[np.argmax(diff_pts)].tolist()
-    # Top-Right (Small y, Large x -> x-y is max, y-x is min)
-    P4 = pts[np.argmin(diff_pts)].tolist()
+    # 3. Separate left points from right points
+    left_pts = x_sorted[:2, :]
+    right_pts = x_sorted[2:, :]
 
-    # Double check protection to prevent future subscriptable errors
-    if not (P1 and P2 and P3 and P4):
-        print("Calibration error: Failed to map discrete corners unique positions.")
-        return frame, None, None, None
+    # 4. Sort left points by their Y-coordinates to separate Top-Left and Bottom-Left
+    # Smallest Y is top, largest Y is bottom
+    left_y_sorted = left_pts[np.argsort(left_pts[:, 1]), :]
+    P1 = left_y_sorted[0].astype(int).tolist()  # Top-Left
+    P2 = left_y_sorted[1].astype(int).tolist()  # Bottom-Left
 
-    dx1 = math.sqrt(math.pow(abs(P1[0]-P4[0]), 2) +
-                    math.pow(abs(P1[1]-P4[1]), 2))
-    dx2 = math.sqrt(math.pow(abs(P2[0]-P3[0]), 2) +
-                    math.pow(abs(P2[1]-P3[1]), 2))
-    dx = (dx1+dx2)/2
+    # 5. Sort right points by their Y-coordinates to separate Top-Right and Bottom-Right
+    right_y_sorted = right_pts[np.argsort(right_pts[:, 1]), :]
+    P4 = right_y_sorted[0].astype(int).tolist()  # Top-Right
+    P3 = right_y_sorted[1].astype(int).tolist()  # Bottom-Right
 
-    dy1 = math.sqrt(math.pow(abs(P1[0]-P2[0]), 2) +
-                    math.pow(abs(P1[1]-P2[1]), 2))
-    dy2 = math.sqrt(math.pow(abs(P3[0]-P4[0]), 2) +
-                    math.pow(abs(P3[1]-P4[1]), 2))
-    dy = (dy1+dy2)/2
+    # Safety confirmation guard
+    #print("Sorted Corners safely mapped to unique slots:")
+    #print("TL (P1):", P1, "BL (P2):", P2, "BR (P3):", P3, "TR (P4):", P4)
+
+    # Calculate distances safely using your existing math
+    dx1 = math.sqrt(math.pow(abs(P1[0]-P4[0]), 2) + math.pow(abs(P1[1]-P4[1]), 2))
+    dx2 = math.sqrt(math.pow(abs(P2[0]-P3[0]), 2) + math.pow(abs(P2[1]-P3[1]), 2))
+    dx = (dx1 + dx2) / 2
+
+    dy1 = math.sqrt(math.pow(abs(P1[0]-P2[0]), 2) + math.pow(abs(P1[1]-P2[1]), 2))
+    dy2 = math.sqrt(math.pow(abs(P3[0]-P4[0]), 2) + math.pow(abs(P3[1]-P4[1]), 2))
+    dy = (dy1 + dy2) / 2
 
     return frame, dx, dy, P1
 
 
-def generateGrid(frame, x_div, y_div, offset):
+def generateGrid(frame, x_div, y_div, offset, corner_points):
     dx = dy = None
 
-    frame, dx, dy, P1 = calibrateLength(frame, CALIBRATION_COLOR)
-    print("dx: ", dx, "dy: ", dy)
+    frame, dx, dy, P1 = calibrateLength(frame, corner_points)
+
     if dx is None or dy is None:
         return frame, None, None
 
@@ -216,8 +161,6 @@ def detectCircles(frame):
         # Convert the circle parameters a, b, and r to integers
         circles = np.uint16(np.around(circles))
 
-        # print(f"Detected {len(circles[0])} circle(s).")
-
         for i in circles[0, :]:
             center_x, center_y, radius = i[0], i[1], i[2]
 
@@ -225,9 +168,6 @@ def detectCircles(frame):
             cv2.circle(output, (center_x, center_y), 5, (0, 0, 255), 1)
 
             items.append([center_x, center_y])
-    else:
-        # print("No circles were detected.")
-        pass
 
     return output, items
 
@@ -239,7 +179,6 @@ def getPixelColor(img, coord, brightness_threshold=30) -> Color | None:
     the dominant average component.
     """
     x, y = coord
-    print(coord, x, y)
     radius = 1
     # img = cv2.cvtColor(img, cv2.COLOR_HSV2BGR)
 
@@ -260,7 +199,6 @@ def getPixelColor(img, coord, brightness_threshold=30) -> Color | None:
     # cv2.mean returns a tuple of 4 values: (Mean_B, Mean_G, Mean_R, Mean_Alpha)
     mean_b, mean_g, mean_r, _ = cv2.mean(roi)
 
-    print(mean_b, mean_g, mean_r)
 
     # 4. Safety Check: If the average brightness is too dark, classify as noise/None
     if (mean_r + mean_g + mean_b) < brightness_threshold:
@@ -290,17 +228,21 @@ def getPixelColor(img, coord, brightness_threshold=30) -> Color | None:
 
 def classifyItem(frame, coordinates):
     labeled_coords = []
+    unlabeled_coords = []
     for coor in coordinates:
         color: Color = getPixelColor(frame, coor)
         if color is None:
             continue
-        print(color.name)
+        
         for player in PLAYERS:
             if color.name == player.color.name:
                 labeled_coords.append([player, coor])
-                print(labeled_coords, color.name)
+                #print(labeled_coords, color.name)
                 break
-    return labeled_coords
+        else:
+            unlabeled_coords.append([color,coor])
+
+    return labeled_coords, unlabeled_coords
 
 
 def convertToMisiFormat(coordinates):
@@ -310,7 +252,7 @@ def convertToMisiFormat(coordinates):
         player = "player"+str(PLAYERS.index(coord[0])+1)
 
         output[_id] = player
-        print(output[_id], _id)
+        #print(output[_id], _id)
 
     return output
 
@@ -331,8 +273,7 @@ def main():
     stream = requests.get(STREAM_URL, stream=True)
 
     if stream.status_code != 200:
-        print(
-            f"Failed to connect to the server. Status code: {stream.status_code}")
+        print(f"Failed to connect to the server. Status code: {stream.status_code}")
         return
 
     bytes_accumulator = bytes()
@@ -363,8 +304,7 @@ def main():
 
                         # Verify OpenCV successfully turned the bytes into an image
                         if frame is None:
-                            print(
-                                "Warning: Dropped a corrupted frame (OpenCV decode failed).")
+                            print("Warning: Dropped a corrupted frame (OpenCV decode failed).")
                             continue
                     else:
                         continue
@@ -374,24 +314,28 @@ def main():
                 bytes_accumulator = bytes_accumulator[a:]
 
             # Decode the JPEG bytes into an OpenCV image array
-            frame = cv2.imdecode(np.frombuffer(
-                jpg_data, dtype=np.uint8), cv2.IMREAD_COLOR)
+            frame = cv2.imdecode(np.frombuffer(jpg_data, dtype=np.uint8), cv2.IMREAD_COLOR)
+            frame = cv2.flip(frame, 1)
 
+            
+
+            frame, items = detectCircles(frame)
+
+            classified, unclassified = classifyItem(frame,items)
+        
             if calibrating:
-                frame, x_scale, y_scale = generateGrid(frame, 8, 8, 0.5)
+                calibration_points = [point[1] for point in unclassified if point[0] == CALIBRATION_COLOR]
+
+                frame, x_scale, y_scale = generateGrid(frame, 8, 8, 0.5, calibration_points)
                 if x_scale and y_scale:
                     calibrating = False
                     calibrated = True
             elif calibrated:
                 drawGrid(frame, x_scale, y_scale)
 
-            frame, items = detectCircles(frame)
-
             if calibrated:
                 coords = getCoords(items, x_scale, y_scale)
-                #print("COORDS: ",coords)
-                classified = classifyItem(frame,items)
-                players = [[sublist[0], item_b] for sublist, item_b in zip(classified, coords)]
+                players = [[sublist[0], coord] for sublist, coord in zip(classified, coords) if sublist[0] in PLAYERS]
                 if players: LATEST_BOARD_STATE = convertToMisiFormat(players)
                 
 
