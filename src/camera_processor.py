@@ -42,67 +42,9 @@ PLAYERS = [HUMAN, ROBOT]
 
 
 def calibrateLength(frame, calib_points):
-
-
-def getMousePos(event, x, y, flags, param):
-    global mouse_x, mouse_y
-    if event == cv2.EVENT_MOUSEMOVE:
-        mouse_x, mouse_y = x, y
-
-
-def calibrateColor(frame):
-    color = frame[mouse_x, mouse_y]
-    # print(color)
-    color = cv2.cvtColor(np.uint8([[color]]), cv2.COLOR_BGR2HSV)[0][0]
-    return color
-
-
-def maskFrame(frame, mask_color, radius: int):
-    hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-
-    color_lower = np.array([(mask_color.HSV[0]-radius) %
-                           180, 80, 60], np.uint8)
-    color_upper = np.array([(mask_color.HSV[0]+radius) %
-                           180, 255, 255], np.uint8)
-
-    color_mask = cv2.inRange(hsv_frame, color_lower, color_upper)
-
-    color_mask = cv2.dilate(color_mask, kernal)
-    res_color = cv2.bitwise_and(frame, frame, mask=color_mask)
-
-    return color_mask
-
-
-def getColorPos(frame, color_mask, label: str = "Item"):
-    items = []
-    contours, hierarchy = cv2.findContours(
-        color_mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-
-    for pic, contour in enumerate(contours):
-        area = cv2.contourArea(contour)
-        if (area > 300):
-            x, y, w, h = cv2.boundingRect(contour)
-            frame = cv2.rectangle(frame, (x, y),
-                                  (x + w, y + h),
-                                  (0, 0, 255), 2)
-            frame = cv2.circle(frame, (x+w//2, y+h//2), 5, (0, 0, 255), -1)
-
-            cv2.putText(frame, label, (x, y),
-                        cv2.FONT_HERSHEY_SIMPLEX, 1.0,
-                        (0, 0, 255))
-
-            items.append([x+w//2, y+h//2])
-
-    return frame, items
-
-
-def calibrateLength(frame, calib_color):
-    calib_mask = maskFrame(frame, calib_color, 15)
-    frame, calib_points = getColorPos(frame, calib_mask, "Calibration Points")
-
     if len(calib_points) != 4:
-        # print("Calibration error: Not exactly 4 points found. Detected:",
-        #   len(calib_points))
+        print("Calibration error: Not exactly 4 points found. Detected:",
+              len(calib_points))
         return frame, None, None, None
 
     # 1. Convert to a numpy float32 array for precise sorting
@@ -153,8 +95,6 @@ def generateGrid(frame, x_div, y_div, offset, corner_points):
 
     frame, dx, dy, P1 = calibrateLength(frame, corner_points)
 
-    frame, dx, dy, P1 = calibrateLength(frame, CALIBRATION_COLOR)
-    # print("dx: ", dx, "dy: ", dy)
     if dx is None or dy is None:
         return frame, None, None
 
@@ -241,7 +181,6 @@ def getPixelColor(img, coord, brightness_threshold=30) -> Color | None:
     the dominant average component.
     """
     x, y = coord
-    # print(coord, x, y)
     radius = 1
     # img = cv2.cvtColor(img, cv2.COLOR_HSV2BGR)
 
@@ -261,8 +200,6 @@ def getPixelColor(img, coord, brightness_threshold=30) -> Color | None:
     # 3. Calculate the average B, G, R values across the entire region
     # cv2.mean returns a tuple of 4 values: (Mean_B, Mean_G, Mean_R, Mean_Alpha)
     mean_b, mean_g, mean_r, _ = cv2.mean(roi)
-
-    # print(mean_b, mean_g, mean_r
 
     # 4. Safety Check: If the average brightness is too dark, classify as noise/None
     if (mean_r + mean_g + mean_b) < brightness_threshold:
@@ -298,11 +235,9 @@ def classifyItem(frame, coordinates):
         if color is None:
             continue
 
-        # print(color.name)
         for player in PLAYERS:
             if color.name == player.color.name:
                 labeled_coords.append([player, coor])
-                # print(labeled_coords, color.name)
                 # print(labeled_coords, color.name)
                 break
         else:
@@ -318,7 +253,6 @@ def convertToMisiFormat(coordinates):
         player = "player"+str(PLAYERS.index(coord[0])+1)
 
         output[_id] = player
-        # print(output[_id], _id)
         # print(output[_id], _id)
 
     return output
@@ -408,13 +342,6 @@ def main():
                 coords = getCoords(items, x_scale, y_scale)
                 players = [[sublist[0], coord] for sublist, coord in zip(
                     classified, coords) if sublist[0] in PLAYERS]
-                if players:
-                    LATEST_BOARD_STATE = convertToMisiFormat(players)
-
-                # print("COORDS: ",coords)
-                classified = classifyItem(frame, items)
-                players = [[sublist[0], item_b]
-                           for sublist, item_b in zip(classified, coords)]
                 if players:
                     LATEST_BOARD_STATE = convertToMisiFormat(players)
 

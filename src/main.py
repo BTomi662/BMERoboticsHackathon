@@ -1,10 +1,28 @@
+import time
+import threading
+
+from pyparsing import line
 from board import GameBoard
 from engine import Engine
 import random as rnd
 import camera_processor as cam
+import sys
+from pathlib import Path
+import os
+from pathlib import Path
+import sounddevice as sd
+import soundfile as sf
 
-import threading
-import time
+VOICE_ACTOR = "batman"  # Default voice actor, can be changed at runtime
+
+
+# 1. Calculate paths relative to this test file
+project_root = Path(__file__).resolve().parents[1]
+voice_directory = project_root / f"output/{VOICE_ACTOR}"
+
+# 2. Append BOTH paths before importing
+sys.path.append(str(project_root))
+sys.path.append(str(voice_directory))
 
 
 def get_board_state_dict(game_board):
@@ -12,9 +30,47 @@ def get_board_state_dict(game_board):
     return {node_id: node.player for node_id, node in game_board.board.items()}
 
 
+def voice_chance(mood, custom_chance=None):
+    """Plays a random voice line based on the given mood using sounddevice."""
+
+    actor_folder = os.path.join("output", VOICE_ACTOR)
+
+    chance = rnd.random() if custom_chance is None else custom_chance
+    if chance < 0.1:
+        print("No voice line this time.")
+        return
+
+    if not os.path.exists(actor_folder):
+        print(f"⚠️ Error: The directory '{actor_folder}' could not be found.")
+        return
+
+    # Look for files starting with the mood prefix
+    voicelines = []
+    for file in os.listdir(actor_folder):
+        if file.startswith(mood) and file.endswith(".wav"):
+            voicelines.append(os.path.join(actor_folder, file))
+
+    if voicelines:
+        line = rnd.choice(voicelines)
+        print(f"🎤 AI Voice Line: {line}")
+
+        try:
+            # 1. Load the data and sample rate (handles all WAV formats seamlessly)
+            data, fs = sf.read(line)
+
+            # 2. Play the audio asynchronously (doesn't block your hackathon code)
+            sd.play(data, fs)
+
+        except Exception as e:
+            print(f"❌ Audio playback error: {e}")
+    else:
+        print(
+            f"❓ No audio files found starting with '{mood}' in {actor_folder}")
+
+
 def capture_camera_state(board):
     """
-    Builds the camera state dynamically using the engine's current state 
+    Builds the camera state dynamically using the engine's current state
     as a trusted baseline, preventing random CV drops from breaking the game.
     """
     global GAMESTART
@@ -25,11 +81,17 @@ def capture_camera_state(board):
 
     # 2. Convert raw camera entries to match runtime names safely
     camera_occupied_nodes = {}
+    p1list, p2list = [], []
     for nid, val in raw_camera_state.items():
         if val == "player1":
             camera_occupied_nodes[int(nid)] = board.player1
+            p1list.append(nid)
         elif val == "player2":
             camera_occupied_nodes[int(nid)] = board.player2
+            p2list.append(nid)
+
+    print(f"Camera detected AI pieces at nodes: {p1list}")
+    print(f"Camera detected Player pieces at nodes: {p2list}")
 
     # 3. Get the active phase context to know what to look for
     # (Determines if we are checking the human's turn or the AI's turn)
@@ -164,6 +226,7 @@ def handle_human_mill_removal(board, human_player, ai_player):
                 continue
 
             log.append(r_nid)
+            voice_chance("lose_piece")
             return r_nid
         except ValueError:
             print("❌ Please enter a valid integer node ID.")
@@ -213,6 +276,8 @@ def main():
         if winner:
             message = f"🎉 GAME OVER! {winner} wins the game! 🎉"
             log.append(message)
+            if winner == HUMAN_NAME:
+                voice_chance("lose", 1.0)
             print(message)
             break
 
@@ -281,29 +346,54 @@ def main():
                 log.append(f"Camera verified human action: {detected}")
                 print(f"✅ Physical action verified and accepted by game engine.")
 
-                # Handle Mill Formation Capture Step
+                # ==========================================
+                # 🔥 HANDLE HUMAN MILL FORMATION REMOVAL
+                # ==========================================
                 if board.is_part_of_mill(to_nid, HUMAN_NAME):
                     board.display()
                     while True:
                         print(
                             f"🔥 MILL FORMED! Choose and physically REMOVE one of {AI_NAME}'s pieces.")
-                        input(
-                            "👉 Press [Enter] AFTER you have removed the piece... ")
+
+                        # 👇 CHANGE: Capture what you type in the terminal
+                        debug_rem_input = input(
+                            "👉 Press [Enter] AFTER you have removed the piece (or type the Node ID): ").strip()
+
+                        # 👇 NEW: Handle simulation input by deleting the piece from the mock camera state
+                        if debug_rem_input:
+                            try:
+                                target_node = int(debug_rem_input)
+                                # To simulate a removal, we MUST remove it from the camera data dictionary
+                                if target_node in cam.LATEST_BOARD_STATE:
+                                    del cam.LATEST_BOARD_STATE[target_node]
+                                    print(
+                                        f"⚙️ [Debug Simulation] Removed piece from Node {target_node} in mock camera state.")
+                                else:
+                                    print(
+                                        f"⚠️ Node {target_node} wasn't even occupied in the camera state!")
+                            except ValueError:
+                                print(
+                                    "⚠️ Invalid format. Please enter a single numeric Node ID (e.g., 14).")
+                                continue
 
                         prev_state_mill = get_board_state_dict(board)
                         curr_camera_state_mill = capture_camera_state(board)
                         detected_mill = analyze_camera_step(
                             prev_state_mill, curr_camera_state_mill)
 
+                        # Check if the step analyzer correctly detected a removal of an AI piece
                         if detected_mill["action"] == "remove" and detected_mill["player"] == AI_NAME:
-                            # Validate rules (is it in a mill, etc.)
+                            # Validate rules (e.g., ensuring you didn't pick a piece protected by an AI mill)
                             if board.remove_piece(detected_mill["at"], AI_NAME):
                                 log.append(
                                     f"Camera verified mill removal: {detected_mill}")
                                 print("✅ Removal verified successfully.")
+                                voice_chance("lose_piece")
                                 break
+
                         print(
                             f"❌ Invalid removal. Please return the board state and remove a valid, unprotected piece.")
+                break
                 break
             else:
                 print(
@@ -347,8 +437,24 @@ def main():
 
         # Atomic Step 1: Verify AI Movement Execution
         while True:
-            input(
-                "👉 Execute the AI's movement on the board, then press [Enter] to verify... ")
+            # Capture the string typed into the terminal for the AI's move
+            debug_input = input(
+                "👉 Execute the AI's movement on the board, then press [Enter] to verify... ").strip()
+
+            # Inject simulated coordinates directly into the mock camera state
+            if debug_input:
+                try:
+                    if debug_input.isdigit():
+                        # Typing "11" automatically assigns it to the AI ("player1")
+                        cam.LATEST_BOARD_STATE[int(debug_input)] = "player1"
+                        print(
+                            f"⚙️ [Debug Simulation] Placed AI piece on Node {debug_input} in mock camera state.")
+                    else:
+                        p_str, n_id = debug_input.split()
+                        cam.LATEST_BOARD_STATE[int(n_id)] = p_str
+                except ValueError:
+                    print("⚠️ Invalid format. Type just the node number (e.g., 11)")
+                    continue
 
             prev_state = get_board_state_dict(board)
             curr_camera_state = capture_camera_state(board)
@@ -369,29 +475,53 @@ def main():
 
                 log.append(
                     f"Camera verified AI movement execution: {detected}")
+                voice_chance("think")
                 print("✅ AI movement verified.")
 
-                # Atomic Step 2: Verify AI Mill Removal Execution (If applicable)
+                # =============================================================
+                # Atomic Step 2: Verify AI Mill Removal Execution (Fixed)
+                # =============================================================
                 if ai_action["remove"] is not None:
                     while True:
                         print(
-                            f"\n👉 Remember to remove your piece at Node **{ai_action['remove']}**.")
-                        input(
-                            "👉 Press [Enter] once you have physically removed it... ")
+                            f"\n🔥 AI FORMED A MILL! You must remove your own piece at Node: **{ai_action['remove']}**")
+
+                        # 👇 CAPTURE THE REMOVAL SIMULATION NUMBER
+                        debug_rem_input = input(
+                            f"👉 Type the Node ID you are removing (Expected: {ai_action['remove']}) and press [Enter]: ").strip()
+
+                        if debug_rem_input:
+                            try:
+                                target_node = int(debug_rem_input)
+                                # To simulate a removal, we must delete it from the camera data dictionary
+                                if target_node in cam.LATEST_BOARD_STATE:
+                                    del cam.LATEST_BOARD_STATE[target_node]
+                                    print(
+                                        f"⚙️ [Debug Simulation] Removed human piece from Node {target_node} in mock camera state.")
+                                else:
+                                    print(
+                                        f"⚠️ Node {target_node} wasn't marked as occupied in the camera state data.")
+                            except ValueError:
+                                print(
+                                    "⚠️ Invalid format. Type the node number you removed.")
+                                continue
 
                         prev_state_rem = get_board_state_dict(board)
                         curr_camera_state_rem = capture_camera_state(board)
                         detected_rem = analyze_camera_step(
                             prev_state_rem, curr_camera_state_rem)
 
+                        # Validate that a removal action of a human piece was captured by the step analyzer
                         if detected_rem["action"] == "remove" and detected_rem["player"] == HUMAN_NAME and detected_rem["at"] == ai_action["remove"]:
                             board.remove_piece(ai_action["remove"], HUMAN_NAME)
                             log.append(
                                 f"Camera verified AI mill removal execution: {detected_rem}")
-                            print("✅ AI mill capture verified.")
+                            print("✅ AI mill capture verified successfully.")
+                            voice_chance("remove")
                             break
-                        print(
-                            f"❌ Error: Camera didn't see the removal of your piece at node {ai_action['remove']}. Please check.")
+                        else:
+                            print(
+                                f"❌ Error: Camera didn't see the removal of your piece at node {ai_action['remove']}. Please try scanning again.")
                 break
             else:
                 print(
@@ -400,6 +530,9 @@ def main():
 
 if __name__ == "__main__":
     GAMESTART = True
+    VOICE_ACTOR = str(
+        input("Choose AI Voice Actor (e.g., 'batman' or 'goth'): ")).strip().lower()
     AI_NAME = "Joe"
     log = []
+    voice_chance("place", 1.0)  # Play a victory line at the start just for fun
     main()
