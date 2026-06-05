@@ -3,6 +3,10 @@ from engine import Engine
 import random as rnd
 import camera_processor as cam
 
+import threading
+import time
+
+
 
 def get_board_state_dict(game_board):
     """Converts the current GameBoard object layout into a clean raw state dictionary."""
@@ -137,8 +141,17 @@ def handle_human_mill_removal(board, human_player, ai_player):
             print("❌ Please enter a valid integer node ID.")
 
 
+def start_tracking():
+    # Spin up the camera processing loops in the background
+    camera_thread = threading.Thread(target=cam.main, daemon=True)
+    camera_thread.start()
+
+
 def main():
     print("Welcome to Nine Men's Morris Camera-Driven System!")
+
+    start_tracking()
+    time.sleep(5)
 
     # 1. Capture human player name at start
     while True:
@@ -343,3 +356,6 @@ def main():
             else:
                 print(
                     "❌ The camera did not detect the correct AI movement strategy. Please review the instructions.")
+
+if __name__ == "__main__":
+    main()

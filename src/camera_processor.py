@@ -2,7 +2,6 @@ import cv2
 import requests
 import numpy as np
 import math
-from board import GameBoard
 
 # Replace with your ESP32-S3 IP address
 # Note: The original Arduino code serves the stream directly at the root "/" URL
