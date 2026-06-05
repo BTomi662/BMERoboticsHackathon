@@ -1,2 +1,4 @@
 .vscode/
-src/secrets.py
+secrets.py
+voice.py
+output
