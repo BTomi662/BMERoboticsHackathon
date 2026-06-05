@@ -308,7 +308,11 @@ def convertToMisiFormat(coordinates):
 
     return output
 
+
+LATEST_BOARD_STATE = {}
+
 def main():
+    global LATEST_BOARD_STATE
     calibrating = False
     calibrated = False
     x_scale=None
@@ -383,7 +387,7 @@ def main():
                 #print("COORDS: ",coords)
                 classified = classifyItem(frame,items)
                 players = [[sublist[0], item_b] for sublist, item_b in zip(classified, coords)]
-                if players: output = convertToMisiFormat(players)
+                if players: LATEST_BOARD_STATE = convertToMisiFormat(players)
                 
 
 
@@ -398,20 +402,6 @@ def main():
             if key == ord('c'):
                 calibrating = True
                 calibrated = False
-
-            if key == ord('r'):
-                RED = calibrateColor(frame)
-                
-                print(RED)
-            if key == ord('g'):
-                GREEN = calibrateColor(frame)
-                print(GREEN)
-            if key == ord('b'):
-                BLUE = calibrateColor(frame)
-                print(BLUE)
-            if key == ord('y'):
-                YELLOW = calibrateColor(frame)
-                print(YELLOW)
 
     cv2.destroyAllWindows()
 
