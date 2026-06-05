@@ -53,7 +53,7 @@ def getMousePos(event, x, y, flags, param):
 
 def calibrateColor(frame):
     color = frame[mouse_x, mouse_y]
-    print(color)
+    # print(color)
     color = cv2.cvtColor(np.uint8([[color]]), cv2.COLOR_BGR2HSV)[0][0]
     return color
 
@@ -102,8 +102,8 @@ def calibrateLength(frame, calib_color):
     frame, calib_points = getColorPos(frame, calib_mask, "Calibration Points")
 
     if len(calib_points) != 4:
-        print("Calibration error: Not exactly 4 points found. Detected:",
-              len(calib_points))
+        # print("Calibration error: Not exactly 4 points found. Detected:",
+        #   len(calib_points))
         return frame, None, None, None
 
     # Convert to a numpy array for easy manipulation
@@ -147,7 +147,7 @@ def generateGrid(frame, x_div, y_div, offset):
     dx = dy = None
 
     frame, dx, dy, P1 = calibrateLength(frame, CALIBRATION_COLOR)
-    print("dx: ", dx, "dy: ", dy)
+    # print("dx: ", dx, "dy: ", dy)
     if dx is None or dy is None:
         return frame, None, None
 
@@ -239,7 +239,7 @@ def getPixelColor(img, coord, brightness_threshold=30) -> Color | None:
     the dominant average component.
     """
     x, y = coord
-    print(coord, x, y)
+    # print(coord, x, y)
     radius = 1
     # img = cv2.cvtColor(img, cv2.COLOR_HSV2BGR)
 
@@ -260,7 +260,7 @@ def getPixelColor(img, coord, brightness_threshold=30) -> Color | None:
     # cv2.mean returns a tuple of 4 values: (Mean_B, Mean_G, Mean_R, Mean_Alpha)
     mean_b, mean_g, mean_r, _ = cv2.mean(roi)
 
-    print(mean_b, mean_g, mean_r)
+    # print(mean_b, mean_g, mean_r
 
     # 4. Safety Check: If the average brightness is too dark, classify as noise/None
     if (mean_r + mean_g + mean_b) < brightness_threshold:
@@ -294,11 +294,11 @@ def classifyItem(frame, coordinates):
         color: Color = getPixelColor(frame, coor)
         if color is None:
             continue
-        print(color.name)
+        # print(color.name)
         for player in PLAYERS:
             if color.name == player.color.name:
                 labeled_coords.append([player, coor])
-                print(labeled_coords, color.name)
+                # print(labeled_coords, color.name)
                 break
     return labeled_coords
 
@@ -310,12 +310,13 @@ def convertToMisiFormat(coordinates):
         player = "player"+str(PLAYERS.index(coord[0])+1)
 
         output[_id] = player
-        print(output[_id], _id)
+        # print(output[_id], _id)
 
     return output
 
 
 LATEST_BOARD_STATE = {}
+
 
 def main():
     global LATEST_BOARD_STATE
@@ -389,12 +390,12 @@ def main():
 
             if calibrated:
                 coords = getCoords(items, x_scale, y_scale)
-                #print("COORDS: ",coords)
-                classified = classifyItem(frame,items)
-                players = [[sublist[0], item_b] for sublist, item_b in zip(classified, coords)]
-                if players: LATEST_BOARD_STATE = convertToMisiFormat(players)
-                
-
+                # print("COORDS: ",coords)
+                classified = classifyItem(frame, items)
+                players = [[sublist[0], item_b]
+                           for sublist, item_b in zip(classified, coords)]
+                if players:
+                    LATEST_BOARD_STATE = convertToMisiFormat(players)
 
             if frame is not None:
                 # Display the live image in a window

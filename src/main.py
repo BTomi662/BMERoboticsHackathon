@@ -7,7 +7,6 @@ import threading
 import time
 
 
-
 def get_board_state_dict(game_board):
     """Converts the current GameBoard object layout into a clean raw state dictionary."""
     return {node_id: node.player for node_id, node in game_board.board.items()}
@@ -15,19 +14,48 @@ def get_board_state_dict(game_board):
 
 def capture_camera_state(board):
     """
-    Should return a raw state dictionary: {node_id: player_name_or_None}
-
-    CRITICAL: Ensure that the strings representing your players ('player1', 'player2')
-    are converted to match the runtime names ('Joe', 'name') configured in your board.
+    Builds the camera state dynamically using the engine's current state 
+    as a trusted baseline, preventing random CV drops from breaking the game.
     """
-    # Example format your CV data pipeline should return:
-    # cv_raw_data = {11: "player1", 14: None, 17: "player2", ...}
+    global GAMESTART
+    raw_camera_state = cam.LATEST_BOARD_STATE
 
-    # This should return {node_id: player_name_or_None}
-    camera_state = cam.get_camera_board_state()
+    # 1. Start with a perfect copy of the current trusted internal board state
+    cleaned_state = get_board_state_dict(board)
 
-    raise NotImplementedError(
-        "Connect your OpenCV camera detection data dictionary here!")
+    # 2. Convert raw camera entries to match runtime names safely
+    camera_occupied_nodes = {}
+    for nid, val in raw_camera_state.items():
+        if val == "player1":
+            camera_occupied_nodes[int(nid)] = board.player1
+        elif val == "player2":
+            camera_occupied_nodes[int(nid)] = board.player2
+
+    # 3. Get the active phase context to know what to look for
+    # (Determines if we are checking the human's turn or the AI's turn)
+    current_player = board.player1 if "AI Thinking" in log[-1] else board.player2
+
+    # Let's inspect ONLY the nodes that the camera claims have active pieces.
+    # If the camera detects a piece where the engine thought it was empty,
+    # we trust the camera (detecting a Placement or the 'TO' target of a Move).
+    for nid, player in camera_occupied_nodes.items():
+        if cleaned_state.get(nid) is None:
+            cleaned_state[nid] = player
+
+    # 4. Handle Vacated Nodes (Moves/Removals) safely:
+    # If a node was occupied in our engine, but it's missing from the camera data,
+    # we ONLY clear it to None if it makes sense within the current game context
+    # (i.e., it's a piece belonging to the active mover or a captured piece).
+    for nid in list(cleaned_state.keys()):
+        if cleaned_state[nid] is not None and nid not in camera_occupied_nodes:
+            # Only vacate if it belongs to the player expected to move/be removed
+            if cleaned_state[nid] == current_player or board.is_part_of_mill(nid, cleaned_state[nid]):
+                cleaned_state[nid] = None
+
+    if GAMESTART:
+        GAMESTART = False
+
+    return cleaned_state
 
 
 def analyze_camera_step(prev_state, curr_state):
@@ -160,9 +188,7 @@ def main():
             break
         print("❌ Name cannot be empty or 'Joe' (reserved for AI).")
 
-    AI_NAME = "Joe"
     HUMAN_NAME = human_name
-    log = []
 
     log.append(f"Game started. Human: {HUMAN_NAME} | AI: {AI_NAME}")
 
@@ -200,10 +226,24 @@ def main():
         while True:
             print(
                 f"\n[Action Required]: Physically perform your **Phase {human_phase} {expected_action}**.")
-            input(
-                "👉 Press [Enter] AFTER you have completely finished moving your piece... ")
+
+            # 👇 CHANGE: Capture the text typed into the prompt!
+            debug_input = input(
+                "👉 Press [Enter] AFTER moving, or type 'player_num node_id' to simulate (e.g., player2 11): ").strip()
+
+            # 👇 NEW: If you type something, intercept it and update the mock camera state!
+            if debug_input:
+                try:
+                    p_str, n_id = debug_input.split()
+                    # Updates the camera dictionary directly before it gets read
+                    cam.LATEST_BOARD_STATE[int(n_id)] = p_str
+                except ValueError:
+                    print("⚠️ Invalid debug format. Use: 'player1 23' or 'player2 11'")
 
             prev_state = get_board_state_dict(board)
+            curr_camera_state = capture_camera_state(board)
+
+            # ... rest of your code continues exactly the same ...
             try:
                 curr_camera_state = capture_camera_state(board)
             except NotImplementedError:
@@ -357,5 +397,9 @@ def main():
                 print(
                     "❌ The camera did not detect the correct AI movement strategy. Please review the instructions.")
 
+
 if __name__ == "__main__":
+    GAMESTART = True
+    AI_NAME = "Joe"
+    log = []
     main()
