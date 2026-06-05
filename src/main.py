@@ -1,11 +1,29 @@
 from board import GameBoard
 from engine import Engine
 import random as rnd
+import camera_processor as cam
 
 
 def get_board_state_dict(game_board):
     """Converts the current GameBoard object layout into a clean raw state dictionary."""
     return {node_id: node.player for node_id, node in game_board.board.items()}
+
+
+def capture_camera_state(board):
+    """
+    Should return a raw state dictionary: {node_id: player_name_or_None}
+
+    CRITICAL: Ensure that the strings representing your players ('player1', 'player2')
+    are converted to match the runtime names ('Joe', 'name') configured in your board.
+    """
+    # Example format your CV data pipeline should return:
+    # cv_raw_data = {11: "player1", 14: None, 17: "player2", ...}
+
+    # This should return {node_id: player_name_or_None}
+    camera_state = cam.get_camera_board_state()
+
+    raise NotImplementedError(
+        "Connect your OpenCV camera detection data dictionary here!")
 
 
 def analyze_camera_step(prev_state, curr_state):
@@ -120,19 +138,20 @@ def handle_human_mill_removal(board, human_player, ai_player):
 
 
 def main():
-    print("Welcome to Nine Men's Morris Simulation!")
+    print("Welcome to Nine Men's Morris Camera-Driven System!")
 
     # 1. Capture human player name at start
     while True:
         human_name = input("Enter Human Player Name: ").strip()
         if human_name and human_name.lower() != "joe":
             break
-        print("❌ Name cannot be empty or 'Joe' (which is reserved for the AI).")
+        print("❌ Name cannot be empty or 'Joe' (reserved for AI).")
 
     AI_NAME = "Joe"
     HUMAN_NAME = human_name
-    log.append(
-        f"Game started with Human Player: {HUMAN_NAME} and AI Player: {AI_NAME}")
+    log = []
+
+    log.append(f"Game started. Human: {HUMAN_NAME} | AI: {AI_NAME}")
 
     # 2. Initialize GameBoard
     board = GameBoard()
@@ -146,8 +165,6 @@ def main():
     ai_engine = Engine(ai_player=AI_NAME, human_player=HUMAN_NAME, max_depth=5)
 
     print("\n--- Game Initialized ---")
-    print(f"Player 1 (AI): {AI_NAME} 🤖")
-    print(f"Player 2 (Human): {HUMAN_NAME} 👤\n")
 
     while True:
         board.display()
@@ -161,57 +178,87 @@ def main():
             break
 
         # ==========================================
-        # 👤 HUMAN TURN
+        # 👤 HUMAN TURN (Physical Action -> Camera Read)
         # ==========================================
         print(f"\n👉 {HUMAN_NAME}'s Turn (Human)")
         human_phase = board.get_game_phase(HUMAN_NAME)
+        expected_action = "place" if human_phase == 1 else "move"
 
-        if human_phase == 1:
-            # Atomic Step 1: Human Placement
+        while True:
+            print(
+                f"\n[Action Required]: Physically perform your **Phase {human_phase} {expected_action}**.")
+            input(
+                "👉 Press [Enter] AFTER you have completely finished moving your piece... ")
+
             prev_state = get_board_state_dict(board)
-            to_nid = get_human_piece_placement(board, HUMAN_NAME)
-            board.place_piece(to_nid, HUMAN_NAME)
+            try:
+                curr_camera_state = capture_camera_state(board)
+            except NotImplementedError:
+                print(
+                    "⚠️ Camera pipeline not connected! Reverting to manual debug simulation.")
+                # Fallback safety handler for prototyping without camera attached
+                to_nid = get_human_piece_placement(board, HUMAN_NAME) if human_phase == 1 else get_human_move(
+                    board, HUMAN_NAME, human_phase)[1]
+                if human_phase == 1:
+                    board.place_piece(to_nid, HUMAN_NAME)
+                break
 
-            # Verify via Camera Step Analyser
-            curr_state = get_board_state_dict(board)
-            camera_step = analyze_camera_step(prev_state, curr_state)
-            log.append(f"Camera detected human action: {camera_step}")
+            # Analyze what the camera physically detected
+            detected = analyze_camera_step(prev_state, curr_camera_state)
 
-            if board.is_part_of_mill(to_nid, HUMAN_NAME):
-                board.display()
-                # Atomic Step 2: Human Removal
-                prev_state = get_board_state_dict(board)
-                r_nid = handle_human_mill_removal(board, HUMAN_NAME, AI_NAME)
-                board.remove_piece(r_nid, AI_NAME)
+            if detected["action"] != expected_action or detected["player"] != HUMAN_NAME:
+                print(
+                    f"❌ Camera Error: Expected a '{expected_action}' by {HUMAN_NAME}.")
+                print(
+                    f"   Detected instead: '{detected['action']}' by '{detected['player']}'.")
+                print(
+                    "👉 Please correct the physical board pieces and try scanning again.")
+                continue
 
-                # Verify via Camera Step Analyser
-                curr_state = get_board_state_dict(board)
-                camera_step = analyze_camera_step(prev_state, curr_state)
-                log.append(f"Camera detected human action: {camera_step}")
-        else:
-            # Atomic Step 1: Human Move
-            prev_state = get_board_state_dict(board)
-            from_nid, to_nid = get_human_move(board, HUMAN_NAME, human_phase)
-            board.move_piece(from_nid, to_nid, HUMAN_NAME)
+            # Dry-run validation through our core board rules logic
+            if expected_action == "place":
+                success = board.place_piece(detected["to"], HUMAN_NAME)
+                to_nid = detected["to"]
+            else:
+                success = board.move_piece(
+                    detected["from"], detected["to"], HUMAN_NAME)
+                to_nid = detected["to"]
 
-            # Verify via Camera Step Analyser
-            curr_state = get_board_state_dict(board)
-            camera_step = analyze_camera_step(prev_state, curr_state)
-            log.append(f"Camera detected human action: {camera_step}")
+            if success:
+                log.append(f"Camera verified human action: {detected}")
+                print(f"✅ Physical action verified and accepted by game engine.")
 
-            if board.is_part_of_mill(to_nid, HUMAN_NAME):
-                board.display()
-                # Atomic Step 2: Human Removal
-                prev_state = get_board_state_dict(board)
-                r_nid = handle_human_mill_removal(board, HUMAN_NAME, AI_NAME)
-                board.remove_piece(r_nid, AI_NAME)
+                # Handle Mill Formation Capture Step
+                if board.is_part_of_mill(to_nid, HUMAN_NAME):
+                    board.display()
+                    while True:
+                        print(
+                            f"🔥 MILL FORMED! Choose and physically REMOVE one of {AI_NAME}'s pieces.")
+                        input(
+                            "👉 Press [Enter] AFTER you have removed the piece... ")
 
-                # Verify via Camera Step Analyser
-                curr_state = get_board_state_dict(board)
-                camera_step = analyze_camera_step(prev_state, curr_state)
-                log.append(f"Camera detected human action: {camera_step}")
+                        prev_state_mill = get_board_state_dict(board)
+                        curr_camera_state_mill = capture_camera_state(board)
+                        detected_mill = analyze_camera_step(
+                            prev_state_mill, curr_camera_state_mill)
 
-        # Refresh map visibility
+                        if detected_mill["action"] == "remove" and detected_mill["player"] == AI_NAME:
+                            # Validate rules (is it in a mill, etc.)
+                            if board.remove_piece(detected_mill["at"], AI_NAME):
+                                log.append(
+                                    f"Camera verified mill removal: {detected_mill}")
+                                print("✅ Removal verified successfully.")
+                                break
+                        print(
+                            f"❌ Invalid removal. Please return the board state and remove a valid, unprotected piece.")
+                break
+            else:
+                print(
+                    "❌ Rule Violation: That move is illegal (e.g., non-adjacent or space occupied).")
+                print(
+                    "👉 Revert your physical piece to its original position and try a different move.")
+
+        # Refresh map visibility after human movement settles
         board.display()
 
         winner = board.check_win()
@@ -220,10 +267,9 @@ def main():
             break
 
         # ==========================================
-        # 🤖 AI TURN ("Joe")
+        # 🤖 AI TURN (Engine Thinks -> Human Executes -> Camera Confirms)
         # ==========================================
         print(f"\n🧠 {AI_NAME}'s Turn (AI Thinking...)")
-
         ai_action = ai_engine.get_best_move(board)
 
         if ai_action is None:
@@ -232,40 +278,68 @@ def main():
             print(message)
             break
 
-        message = f"🤖 {AI_NAME} Action Selected: {ai_action}"
-        log.append(message)
-        print(message)
-
-        # Atomic Step 1: AI Movement Execution
-        prev_state = get_board_state_dict(board)
+        # Instruct the human player on how to move the piece for the AI
+        print("\n--- 🤖 AI INSTRUCTIONS ---")
         if ai_action["from"] is None:
-            board.place_piece(ai_action["to"], AI_NAME)
+            print(
+                f"👉 Please place an AI piece onto Node: **{ai_action['to']}**")
         else:
-            board.move_piece(ai_action["from"], ai_action["to"], AI_NAME)
+            print(
+                f"👉 Please move the AI piece from Node **{ai_action['from']}** to Node **{ai_action['to']}**")
 
-        # Verify via Camera Step Analyser
-        curr_state = get_board_state_dict(board)
-        camera_step = analyze_camera_step(prev_state, curr_state)
-        log.append(f"Camera detected AI action: {camera_step}")
-
-        # Atomic Step 2: AI Mill Removal Execution (If applicable)
         if ai_action["remove"] is not None:
-            message = f"🔥 {AI_NAME} formed a mill and removed {HUMAN_NAME}'s piece at node: {ai_action['remove']}"
-            log.append(message)
-            print(message)
+            print(
+                f"🔥 AI FORMED A MILL! Also remove your own piece at Node: **{ai_action['remove']}**")
+        print("--------------------------")
+
+        # Atomic Step 1: Verify AI Movement Execution
+        while True:
+            input(
+                "👉 Execute the AI's movement on the board, then press [Enter] to verify... ")
 
             prev_state = get_board_state_dict(board)
-            board.remove_piece(ai_action["remove"], HUMAN_NAME)
+            curr_camera_state = capture_camera_state(board)
+            detected = analyze_camera_step(prev_state, curr_camera_state)
 
-            # Verify via Camera Step Analyser
-            curr_state = get_board_state_dict(board)
-            camera_step = analyze_camera_step(prev_state, curr_state)
-            log.append(f"Camera detected AI action: {camera_step}")
+            expected_type = "place" if ai_action["from"] is None else "move"
 
+            if detected["action"] == expected_type and detected["player"] == AI_NAME:
+                if expected_type == "place" and detected["to"] == ai_action["to"]:
+                    board.place_piece(ai_action["to"], AI_NAME)
+                elif expected_type == "move" and detected["from"] == ai_action["from"] and detected["to"] == ai_action["to"]:
+                    board.move_piece(
+                        ai_action["from"], ai_action["to"], AI_NAME)
+                else:
+                    print(
+                        f"❌ Verification failed. You put the AI piece in the wrong place. It needs to go to {ai_action['to']}.")
+                    continue
 
-if __name__ == "__main__":
-    log = []
-    main()
-    print("\n--- ACTION LOG ---")
-    for entry in log:
-        print(entry)
+                log.append(
+                    f"Camera verified AI movement execution: {detected}")
+                print("✅ AI movement verified.")
+
+                # Atomic Step 2: Verify AI Mill Removal Execution (If applicable)
+                if ai_action["remove"] is not None:
+                    while True:
+                        print(
+                            f"\n👉 Remember to remove your piece at Node **{ai_action['remove']}**.")
+                        input(
+                            "👉 Press [Enter] once you have physically removed it... ")
+
+                        prev_state_rem = get_board_state_dict(board)
+                        curr_camera_state_rem = capture_camera_state(board)
+                        detected_rem = analyze_camera_step(
+                            prev_state_rem, curr_camera_state_rem)
+
+                        if detected_rem["action"] == "remove" and detected_rem["player"] == HUMAN_NAME and detected_rem["at"] == ai_action["remove"]:
+                            board.remove_piece(ai_action["remove"], HUMAN_NAME)
+                            log.append(
+                                f"Camera verified AI mill removal execution: {detected_rem}")
+                            print("✅ AI mill capture verified.")
+                            break
+                        print(
+                            f"❌ Error: Camera didn't see the removal of your piece at node {ai_action['remove']}. Please check.")
+                break
+            else:
+                print(
+                    "❌ The camera did not detect the correct AI movement strategy. Please review the instructions.")

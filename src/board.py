@@ -104,6 +104,40 @@ class GameBoard:
             [35, 45, 55], [26, 46, 66], [17, 47, 77]
         ]
 
+    @classmethod
+    def from_camera_state(cls, camera_state, player1="player1", player2="player2"):
+        """Build a GameBoard instance from the camera output dictionary."""
+        game_board = cls()
+        game_board.player1 = player1
+        game_board.player2 = player2
+
+        for node in game_board.board.values():
+            node.player = None
+
+        active_counts = {player1: 0, player2: 0}
+
+        for node_id, camera_player in camera_state.items():
+            if node_id not in game_board.board:
+                continue
+
+            if camera_player == "player1":
+                board_player = player1
+            elif camera_player == "player2":
+                board_player = player2
+            else:
+                continue
+
+            game_board.board[node_id].player = board_player
+            active_counts[board_player] += 1
+
+        game_board.active_pieces = active_counts
+        game_board.unplaced_pieces = {
+            player1: 9 - active_counts[player1],
+            player2: 9 - active_counts[player2],
+        }
+
+        return game_board
+
     def _connect(self, node1_id, direction, node2_id):
         """Helper to create bidirectional graph links cleanly."""
         opposite = {"up": "down", "down": "up",
