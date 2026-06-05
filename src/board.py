@@ -185,15 +185,57 @@ class GameBoard:
         # AI tip: A player also loses if they have no legal moves remaining.
         return None
 
-    def compare_boards(self, other_board):
-        """Compares this board state with another to determine if they are identical."""
-        move_between_boards = []
-        for node_id in self.board:
-            if self.board[node_id].player != other_board.board[node_id].player:
-                move_between_boards.append(
-                    (node_id, self.board[node_id].player, other_board.board[node_id].player))
+    def analyze_camera_step(self, prev_state):
+        """
+        Compares the previous board state with the current camera state.
+        Assumes exactly 1 atomic action has occurred.
+        """
+        gained = {}   # Nodes that went from Empty -> Occupied
+        vacated = {}  # Nodes that went from Occupied -> Empty
 
-        return move_between_boards if len(move_between_boards) == 1 else None
+        # Find the exact node that changed
+        for node_id in prev_state.keys():
+            # FIX: Extract the .player property from the node objects
+            prev_p = prev_state[node_id].player
+            curr_p = self.board[node_id].player
+
+            if prev_p != curr_p:
+                if prev_p is None and curr_p is not None:
+                    gained[node_id] = curr_p
+                elif prev_p is not None and curr_p is None:
+                    vacated[node_id] = prev_p
+
+        # Case 1: Placement (Phase 1)
+        if len(gained) == 1 and len(vacated) == 0:
+            to_node, player = list(gained.items())[0]
+            return {
+                "action": "place",
+                "player": player,
+                "to": to_node
+            }
+
+        # Case 2: Move (Phase 2 or 3)
+        if len(gained) == 1 and len(vacated) == 1:
+            to_node, player = list(gained.items())[0]
+            from_node, _ = list(vacated.items())[0]
+            return {
+                "action": "move",
+                "player": player,
+                "from": from_node,
+                "to": to_node
+            }
+
+        # Case 3: Piece Removal (Mill Capture)
+        if len(gained) == 0 and len(vacated) == 1:
+            at_node, removed_player = list(vacated.items())[0]
+            return {
+                "action": "remove",
+                "player": removed_player,
+                "at": at_node
+            }
+
+        # No changes detected
+        return {"action": "none", "player": None}
 
     def display(self):
         def p(node_id):
@@ -217,3 +259,7 @@ class GameBoard:
         |           |           |
         {p(71)}-----------{p(74)}-----------{p(77)}
             """)
+
+
+if __name__ == "__main__":
+    pass
