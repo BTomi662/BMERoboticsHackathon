@@ -436,20 +436,20 @@ def main():
                 f"🔥 AI FORMED A MILL! Also remove your own piece at Node: **{ai_action['remove']}**")
 
         # =====================================================================
-        # 🦾 NEW: ROBOTIC TRAJECTORY PATHFINDER GENERATION
+        # 🦾 ROBOTIC TRAJECTORY PATHFINDER GENERATION
         # =====================================================================
-        print("\n🤖 [Robot Coordinate Paths]:")
+        print("\n🤖 [Robot Macro Control Script Sequences]:")
 
-        # 1. Calculate path for the primary piece placement or slide action
-        move_path = board.pathfinder(ai_action["from"], ai_action["to"])
-        print(f"  ➡️ Move Path: {move_path}")
+        # 1. Primary Move/Placement Action
+        move_commands = board.pathfinder(
+            ai_action["from"], ai_action["to"], is_removal=False)
+        print(f"  ➡️ Move Sequence: {move_commands}")
 
-        # 2. Calculate path for the removal action if a mill was completed
+        # 2. Secondary Opponent Capture Action
         if ai_action["remove"] is not None:
-            # Assumes the robot arm navigates to the removal piece starting from where it dropped the last one
-            remove_path = board.pathfinder(
-                ai_action["to"], ai_action["remove"])
-            print(f"  🔥 Removal Path: {remove_path}")
+            remove_commands = board.pathfinder(
+                None, ai_action["remove"], is_removal=True)
+            print(f"  🔥 Capture/Removal Sequence: {remove_commands}")
 
         print("--------------------------")
 

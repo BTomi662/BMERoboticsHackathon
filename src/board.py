@@ -301,57 +301,106 @@ class GameBoard:
         {p(17)}-----------{p(47)}-----------{p(77)}
             """)
 
-    def pathfinder(self, start_id, end_id):
+    def pathfinder(self, start_id, end_id, is_removal=False):
         """
-        Finds the shortest path from start_id to end_id across the 7x7 grid space.
-        If start_id is None, it always defaults to the physical pickup spot at 10.
-        The robot can use the rest of the y=0 line (20-70) for horizontal transit.
+        Generates a complete robotic command sequence mixed with MAGNET instructions.
+        Ensures the arm always resets to the home/rest position (10) after execution.
         """
-        # Always force the pickup starting point to 10 for new placements
-        if start_id is None:
-            start_id = 10
+        # Ensure the track array for discarded pieces on y=0 exists dynamically
+        if not hasattr(self, '_occupied_removal_slots'):
+            self._occupied_removal_slots = set()
 
-        if start_id == end_id:
-            return [start_id]
+        # --- Helper: Low-level Breadth-First Search ---
+        def base_bfs(s_node, e_node):
+            if s_node == e_node:
+                return [s_node]
+            from collections import deque
+            queue = deque([[s_node]])
+            visited = {s_node}
+            while queue:
+                path = queue.popleft()
+                curr = path[-1]
+                if curr == e_node:
+                    return path
+                cx, cy = curr // 10, curr % 10
+                for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
+                    nx, ny = cx + dx, cy + dy
+                    if (1 <= nx <= 7 and 1 <= ny <= 7) or (1 <= nx <= 7 and ny == 0):
+                        next_id = nx * 10 + ny
+                        if next_id not in visited:
+                            blocked = False
+                            if next_id in self.board and self.board[next_id].player is not None:
+                                if next_id != e_node:
+                                    blocked = True
+                            if not blocked:
+                                visited.add(next_id)
+                                queue.append(path + [next_id])
+            # Fallback routing line if path is completely trapped
+            return [s_node, e_node]
 
-        from collections import deque
+        commands = []
 
-        queue = deque([[start_id]])
-        visited = {start_id}
+        # =====================================================================
+        # PROFILE 1: PIECE PLACEMENT (Phase 1)
+        # =====================================================================
+        if start_id is None and not is_removal:
+            # Starts directly at the (1,0) rest point where the supply piece sits
+            commands.append("MAGNET_ON")
+            commands.extend(base_bfs(10, end_id))
+            commands.append("MAGNET_OFF")
 
-        while queue:
-            path = queue.popleft()
-            current = path[-1]
+            # Post-action: return to rest point (1,0)
+            return_path = base_bfs(end_id, 10)
+            commands.extend(return_path[1:])
 
-            if current == end_id:
-                return path
+        # =====================================================================
+        # PROFILE 2: PIECE REMOVAL (Mill Capture Action)
+        # =====================================================================
+        elif is_removal:
+            # Target piece to eliminate is passed as end_id
+            # Move empty arm from rest position (10) to the targeted piece
+            path_to_target = base_bfs(10, end_id)
+            commands.extend(path_to_target)
+            commands.append("MAGNET_ON")
 
-            # Unpack current X (column) and Y (row)
-            cx = current // 10
-            cy = current % 10
+            # Find an available graveyard spot along the y=0 line (excluding the rest position 10)
+            target_slot = 70  # Default fallback graveyard position
+            for slot in [20, 30, 40, 50, 60, 70]:
+                if slot not in self._occupied_removal_slots:
+                    target_slot = slot
+                    break
 
-            # Explore 4-directional neighbors (Right, Left, Down, Up)
-            for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
-                nx, ny = cx + dx, cy + dy
+            # Lock this slot so subsequent removals stack down the line
+            self._occupied_removal_slots.add(target_slot)
 
-                # Boundary rule: Allow normal 1-7 grid OR the horizontal y=0 movement ceiling
-                if (1 <= nx <= 7 and 1 <= ny <= 7) or (1 <= nx <= 7 and ny == 0):
-                    next_id = nx * 10 + ny
+            # Move piece from board to the calculated corridor slot
+            path_to_corridor = base_bfs(end_id, target_slot)
+            commands.extend(path_to_corridor[1:])
+            commands.append("MAGNET_OFF")
 
-                    if next_id not in visited:
-                        is_blocked = False
+            # Post-action: return to rest point (1,0)
+            return_path = base_bfs(target_slot, 10)
+            commands.extend(return_path[1:])
 
-                        # Obstruction check for physical pieces on the board
-                        if next_id in self.board and self.board[next_id].player is not None:
-                            # Land safely on the target even if it contains an enemy piece to be removed
-                            if next_id != end_id:
-                                is_blocked = True
+        # =====================================================================
+        # PROFILE 3: STANDARD PIECE MOVEMENT (Phase 2 & 3 Sliding/Flying)
+        # =====================================================================
+        else:
+            # Move empty arm from rest position (10) to the starting item
+            path_to_source = base_bfs(10, start_id)
+            commands.extend(path_to_source)
+            commands.append("MAGNET_ON")
 
-                        if not is_blocked:
-                            visited.add(next_id)
-                            queue.append(path + [next_id])
+            # Execute physical relocation path
+            path_to_dest = base_bfs(start_id, end_id)
+            commands.extend(path_to_dest[1:])
+            commands.append("MAGNET_OFF")
 
-        return None  # Return None if completely trapped/blocked
+            # Post-action: return to rest point (1,0)
+            return_path = base_bfs(end_id, 10)
+            commands.extend(return_path[1:])
+
+        return commands
 
 
 if __name__ == "__main__":
