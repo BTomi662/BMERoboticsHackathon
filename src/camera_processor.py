@@ -28,7 +28,6 @@ class Color:
             np.uint8([[self.BRG]]), cv2.COLOR_BGR2HSV)[0][0]
 
 
-
 RED = Color("RED", [0, 0, 230])
 GREEN = Color("GREEN", [0, 255, 0])
 BLUE = Color("BLUE", [255, 0, 0])
@@ -42,11 +41,10 @@ ROBOT = Player("robot", BLUE)
 PLAYERS = [HUMAN, ROBOT]
 
 
-
-
 def calibrateLength(frame, calib_points):
     if len(calib_points) != 4:
-        print("Calibration error: Not exactly 4 points found. Detected:", len(calib_points))
+        print("Calibration error: Not exactly 4 points found. Detected:",
+              len(calib_points))
         return frame, None, None, None
 
     # 1. Convert to a numpy float32 array for precise sorting
@@ -73,16 +71,20 @@ def calibrateLength(frame, calib_points):
     P3 = right_y_sorted[1].astype(int).tolist()  # Bottom-Right
 
     # Safety confirmation guard
-    #print("Sorted Corners safely mapped to unique slots:")
-    #print("TL (P1):", P1, "BL (P2):", P2, "BR (P3):", P3, "TR (P4):", P4)
+    # print("Sorted Corners safely mapped to unique slots:")
+    # print("TL (P1):", P1, "BL (P2):", P2, "BR (P3):", P3, "TR (P4):", P4)
 
     # Calculate distances safely using your existing math
-    dx1 = math.sqrt(math.pow(abs(P1[0]-P4[0]), 2) + math.pow(abs(P1[1]-P4[1]), 2))
-    dx2 = math.sqrt(math.pow(abs(P2[0]-P3[0]), 2) + math.pow(abs(P2[1]-P3[1]), 2))
+    dx1 = math.sqrt(math.pow(abs(P1[0]-P4[0]), 2) +
+                    math.pow(abs(P1[1]-P4[1]), 2))
+    dx2 = math.sqrt(math.pow(abs(P2[0]-P3[0]), 2) +
+                    math.pow(abs(P2[1]-P3[1]), 2))
     dx = (dx1 + dx2) / 2
 
-    dy1 = math.sqrt(math.pow(abs(P1[0]-P2[0]), 2) + math.pow(abs(P1[1]-P2[1]), 2))
-    dy2 = math.sqrt(math.pow(abs(P3[0]-P4[0]), 2) + math.pow(abs(P3[1]-P4[1]), 2))
+    dy1 = math.sqrt(math.pow(abs(P1[0]-P2[0]), 2) +
+                    math.pow(abs(P1[1]-P2[1]), 2))
+    dy2 = math.sqrt(math.pow(abs(P3[0]-P4[0]), 2) +
+                    math.pow(abs(P3[1]-P4[1]), 2))
     dy = (dy1 + dy2) / 2
 
     return frame, dx, dy, P1
@@ -199,7 +201,6 @@ def getPixelColor(img, coord, brightness_threshold=30) -> Color | None:
     # cv2.mean returns a tuple of 4 values: (Mean_B, Mean_G, Mean_R, Mean_Alpha)
     mean_b, mean_g, mean_r, _ = cv2.mean(roi)
 
-
     # 4. Safety Check: If the average brightness is too dark, classify as noise/None
     if (mean_r + mean_g + mean_b) < brightness_threshold:
         return None
@@ -233,14 +234,14 @@ def classifyItem(frame, coordinates):
         color: Color = getPixelColor(frame, coor)
         if color is None:
             continue
-        
+
         for player in PLAYERS:
             if color.name == player.color.name:
                 labeled_coords.append([player, coor])
-                #print(labeled_coords, color.name)
+                # print(labeled_coords, color.name)
                 break
         else:
-            unlabeled_coords.append([color,coor])
+            unlabeled_coords.append([color, coor])
 
     return labeled_coords, unlabeled_coords
 
@@ -252,12 +253,13 @@ def convertToMisiFormat(coordinates):
         player = "player"+str(PLAYERS.index(coord[0])+1)
 
         output[_id] = player
-        #print(output[_id], _id)
+        # print(output[_id], _id)
 
     return output
 
 
 LATEST_BOARD_STATE = {}
+
 
 def main():
     global LATEST_BOARD_STATE
@@ -273,7 +275,8 @@ def main():
     stream = requests.get(STREAM_URL, stream=True)
 
     if stream.status_code != 200:
-        print(f"Failed to connect to the server. Status code: {stream.status_code}")
+        print(
+            f"Failed to connect to the server. Status code: {stream.status_code}")
         return
 
     bytes_accumulator = bytes()
@@ -304,7 +307,8 @@ def main():
 
                         # Verify OpenCV successfully turned the bytes into an image
                         if frame is None:
-                            print("Warning: Dropped a corrupted frame (OpenCV decode failed).")
+                            print(
+                                "Warning: Dropped a corrupted frame (OpenCV decode failed).")
                             continue
                     else:
                         continue
@@ -314,19 +318,20 @@ def main():
                 bytes_accumulator = bytes_accumulator[a:]
 
             # Decode the JPEG bytes into an OpenCV image array
-            frame = cv2.imdecode(np.frombuffer(jpg_data, dtype=np.uint8), cv2.IMREAD_COLOR)
+            frame = cv2.imdecode(np.frombuffer(
+                jpg_data, dtype=np.uint8), cv2.IMREAD_COLOR)
             frame = cv2.flip(frame, 1)
-
-            
 
             frame, items = detectCircles(frame)
 
-            classified, unclassified = classifyItem(frame,items)
-        
-            if calibrating:
-                calibration_points = [point[1] for point in unclassified if point[0] == CALIBRATION_COLOR]
+            classified, unclassified = classifyItem(frame, items)
 
-                frame, x_scale, y_scale = generateGrid(frame, 8, 8, 0.5, calibration_points)
+            if calibrating:
+                calibration_points = [
+                    point[1] for point in unclassified if point[0] == CALIBRATION_COLOR]
+
+                frame, x_scale, y_scale = generateGrid(
+                    frame, 8, 8, 0.5, calibration_points)
                 if x_scale and y_scale:
                     calibrating = False
                     calibrated = True
@@ -335,10 +340,10 @@ def main():
 
             if calibrated:
                 coords = getCoords(items, x_scale, y_scale)
-                players = [[sublist[0], coord] for sublist, coord in zip(classified, coords) if sublist[0] in PLAYERS]
-                if players: LATEST_BOARD_STATE = convertToMisiFormat(players)
-                
-
+                players = [[sublist[0], coord] for sublist, coord in zip(
+                    classified, coords) if sublist[0] in PLAYERS]
+                if players:
+                    LATEST_BOARD_STATE = convertToMisiFormat(players)
 
             if frame is not None:
                 # Display the live image in a window

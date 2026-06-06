@@ -12,7 +12,14 @@ class GameBoard:
         # Track active pieces physically alive on the board (Phase 2 & 3)
         self.active_pieces = {self.player1: 0, self.player2: 0}
 
-        # Initialize nodes
+       # Initialize nodes according to the ASCII blueprint
+        # Row 1: 11, 41, 71
+        # Row 2: 22, 42, 62
+        # Row 3: 33, 43, 53
+        # Row 4: 14, 24, 34, 54, 64, 74
+        # Row 5: 35, 45, 55
+        # Row 6: 26, 46, 66
+        # Row 7: 17, 47, 77
         for row, cols in [(1, [1, 4, 7]), (2, [2, 4, 6]), (3, [3, 4, 5]),
                           (4, [1, 2, 3, 5, 6, 7]),
                           (5, [3, 4, 5]), (6, [2, 4, 6]), (7, [1, 4, 7])]:
@@ -24,84 +31,84 @@ class GameBoard:
         # ALL HORIZONTAL CONNECTIONS (Left to Right rows)
         # =====================================================================
         # Row 1 (Top Outer)
-        self._connect(11, "right", 14)
-        self._connect(14, "right", 17)
+        self._connect(11, "right", 41)
+        self._connect(41, "right", 71)
 
         # Row 2 (Top Middle)
-        self._connect(22, "right", 24)
-        self._connect(24, "right", 26)
+        self._connect(22, "right", 42)
+        self._connect(42, "right", 62)
 
         # Row 3 (Top Inner)
-        self._connect(33, "right", 34)
-        self._connect(34, "right", 35)
+        self._connect(33, "right", 43)
+        self._connect(43, "right", 53)
 
         # Row 4 (Left & Right Mid-line Crossbars)
-        self._connect(41, "right", 42)
-        self._connect(42, "right", 43)
-        # Note: Gap between 43 and 45 is a visual void, no connection!
-        self._connect(45, "right", 46)
-        self._connect(46, "right", 47)
+        self._connect(14, "right", 24)
+        self._connect(24, "right", 34)
+        # Note: Central gap between 34 and 54 is empty space!
+        self._connect(54, "right", 64)
+        self._connect(64, "right", 74)
 
         # Row 5 (Bottom Inner)
-        self._connect(53, "right", 54)
-        self._connect(54, "right", 55)
+        self._connect(35, "right", 45)
+        self._connect(45, "right", 55)
 
         # Row 6 (Bottom Middle)
-        self._connect(62, "right", 64)
-        self._connect(64, "right", 66)
+        self._connect(26, "right", 46)
+        self._connect(46, "right", 66)
 
         # Row 7 (Bottom Outer)
-        self._connect(71, "right", 74)
-        self._connect(74, "right", 77)
+        self._connect(17, "right", 47)
+        self._connect(47, "right", 77)
 
         # =====================================================================
         # ALL VERTICAL CONNECTIONS (Top to Bottom columns)
         # =====================================================================
-        # Column 1 (Far Left)
-        self._connect(11, "down", 41)
-        self._connect(41, "down", 71)
+        # Column 1 (Far Left Vertical)
+        self._connect(11, "down", 14)
+        self._connect(14, "down", 17)
 
-        # Column 2 (Mid-Left)
-        self._connect(22, "down", 42)
-        self._connect(42, "down", 62)
+        # Column 2 (Mid-Left Vertical)
+        self._connect(22, "down", 24)
+        self._connect(24, "down", 26)
 
-        # Column 3 (Near Left)
-        self._connect(33, "down", 43)
-        self._connect(43, "down", 53)
+        # Column 3 (Near Left Vertical)
+        self._connect(33, "down", 34)
+        self._connect(34, "down", 35)
 
-        # Column 4 (Center Top Crossbar)
-        self._connect(14, "down", 24)
-        self._connect(24, "down", 34)
+        # Column 4 (Center Left Crossbar down)
+        self._connect(41, "down", 42)
+        self._connect(42, "down", 43)
 
-        # Column 4 (Center Bottom Crossbar)
-        self._connect(54, "down", 64)
-        self._connect(64, "down", 74)
+        # Column 4 (Center Right Crossbar down)
+        self._connect(45, "down", 46)
+        self._connect(46, "down", 47)
 
-        # Column 5 (Near Right)
-        self._connect(35, "down", 45)
-        self._connect(45, "down", 55)
+        # Column 5 (Near Right Vertical)
+        self._connect(53, "down", 54)
+        self._connect(54, "down", 55)
 
-        # Column 6 (Mid-Right)
-        self._connect(26, "down", 46)
-        self._connect(46, "down", 66)
+        # Column 6 (Mid-Right Vertical)
+        self._connect(62, "down", 64)
+        self._connect(64, "down", 66)
 
-        # Column 7 (Far Right)
-        self._connect(17, "down", 47)
-        self._connect(47, "down", 77)
+        # Column 7 (Far Right Vertical)
+        self._connect(71, "down", 74)
+        self._connect(74, "down", 77)
 
         # =====================================================================
-        # 16 MILLS MAPPING
+        # 16 MILLS MAPPING (Matches updated alignment)
         # =====================================================================
         self.MILLS = [
-            # Horizontal Mills (Row-by-Row)
-            [11, 14, 17], [22, 24, 26], [33, 34, 35],
-            [41, 42, 43], [45, 46, 47],
-            [53, 54, 55], [62, 64, 66], [71, 74, 77],
-
-            # Vertical Mills (Column-by-Column)
+            # Horizontal Mills (Row-by-Row left-to-right triplets)
             [11, 41, 71], [22, 42, 62], [33, 43, 53],
             [14, 24, 34], [54, 64, 74],
-            [35, 45, 55], [26, 46, 66], [17, 47, 77]
+            [35, 45, 55], [26, 46, 66], [17, 47, 77],
+
+            # Vertical Mills (Column-by-Column top-to-bottom triplets)
+            [11, 14, 17], [22, 24, 26], [33, 34, 35],
+            [41, 42, 43], [45, 46, 47],
+            [53, 54, 55], [62, 64, 66], [71, 74, 77]
         ]
 
     @classmethod
@@ -279,20 +286,72 @@ class GameBoard:
             return "J" if player == self.player1 else "M"
 
         print(f"""
-        {p(11)}-----------{p(14)}-----------{p(17)}
+        {p(11)}-----------{p(41)}-----------{p(71)}
         |           |           |
-        |   {p(22)}-------{p(24)}-------{p(26)}   |
+        |   {p(22)}-------{p(42)}-------{p(62)}   |
         |   |       |       |   |
-        |   |   {p(33)}---{p(34)}---{p(35)}   |   |
+        |   |   {p(33)}---{p(43)}---{p(53)}   |   |
         |   |   |       |   |   |
-        {p(41)}---{p(42)}---{p(43)}       {p(45)}---{p(46)}---{p(47)}
+        {p(14)}---{p(24)}---{p(34)}       {p(54)}---{p(64)}---{p(74)}
         |   |   |       |   |   |
-        |   |   {p(53)}---{p(54)}---{p(55)}   |   |
+        |   |   {p(35)}---{p(45)}---{p(55)}   |   |
         |   |       |       |   |
-        |   {p(62)}-------{p(64)}-------{p(66)}   |
+        |   {p(26)}-------{p(46)}-------{p(66)}   |
         |           |           |
-        {p(71)}-----------{p(74)}-----------{p(77)}
+        {p(17)}-----------{p(47)}-----------{p(77)}
             """)
+
+    def pathfinder(self, start_id, end_id):
+        """
+        Finds the shortest path from start_id to end_id across the 7x7 grid space.
+        If start_id is None, it always defaults to the physical pickup spot at 10.
+        The robot can use the rest of the y=0 line (20-70) for horizontal transit.
+        """
+        # Always force the pickup starting point to 10 for new placements
+        if start_id is None:
+            start_id = 10
+
+        if start_id == end_id:
+            return [start_id]
+
+        from collections import deque
+
+        queue = deque([[start_id]])
+        visited = {start_id}
+
+        while queue:
+            path = queue.popleft()
+            current = path[-1]
+
+            if current == end_id:
+                return path
+
+            # Unpack current X (column) and Y (row)
+            cx = current // 10
+            cy = current % 10
+
+            # Explore 4-directional neighbors (Right, Left, Down, Up)
+            for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
+                nx, ny = cx + dx, cy + dy
+
+                # Boundary rule: Allow normal 1-7 grid OR the horizontal y=0 movement ceiling
+                if (1 <= nx <= 7 and 1 <= ny <= 7) or (1 <= nx <= 7 and ny == 0):
+                    next_id = nx * 10 + ny
+
+                    if next_id not in visited:
+                        is_blocked = False
+
+                        # Obstruction check for physical pieces on the board
+                        if next_id in self.board and self.board[next_id].player is not None:
+                            # Land safely on the target even if it contains an enemy piece to be removed
+                            if next_id != end_id:
+                                is_blocked = True
+
+                        if not is_blocked:
+                            visited.add(next_id)
+                            queue.append(path + [next_id])
+
+        return None  # Return None if completely trapped/blocked
 
 
 if __name__ == "__main__":
