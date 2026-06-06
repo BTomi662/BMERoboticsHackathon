@@ -2,3 +2,4 @@
 secrets.py
 voice.py
 output
+__pycache__/
