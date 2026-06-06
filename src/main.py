@@ -412,6 +412,7 @@ def main():
         # ==========================================
         # 🤖 AI TURN (Engine Thinks -> Human Executes -> Camera Confirms)
         # ==========================================
+        log.append("AI Thinking")  # 👈 ADD THIS LINE HERE
         print(f"\n🧠 {AI_NAME}'s Turn (AI Thinking...)")
         ai_action = ai_engine.get_best_move(board)
 
@@ -433,6 +434,23 @@ def main():
         if ai_action["remove"] is not None:
             print(
                 f"🔥 AI FORMED A MILL! Also remove your own piece at Node: **{ai_action['remove']}**")
+
+        # =====================================================================
+        # 🦾 NEW: ROBOTIC TRAJECTORY PATHFINDER GENERATION
+        # =====================================================================
+        print("\n🤖 [Robot Coordinate Paths]:")
+
+        # 1. Calculate path for the primary piece placement or slide action
+        move_path = board.pathfinder(ai_action["from"], ai_action["to"])
+        print(f"  ➡️ Move Path: {move_path}")
+
+        # 2. Calculate path for the removal action if a mill was completed
+        if ai_action["remove"] is not None:
+            # Assumes the robot arm navigates to the removal piece starting from where it dropped the last one
+            remove_path = board.pathfinder(
+                ai_action["to"], ai_action["remove"])
+            print(f"  🔥 Removal Path: {remove_path}")
+
         print("--------------------------")
 
         # Atomic Step 1: Verify AI Movement Execution

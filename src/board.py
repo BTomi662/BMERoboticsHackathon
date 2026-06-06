@@ -301,6 +301,58 @@ class GameBoard:
         {p(17)}-----------{p(47)}-----------{p(77)}
             """)
 
+    def pathfinder(self, start_id, end_id):
+        """
+        Finds the shortest path from start_id to end_id across the 7x7 grid space.
+        If start_id is None, it always defaults to the physical pickup spot at 10.
+        The robot can use the rest of the y=0 line (20-70) for horizontal transit.
+        """
+        # Always force the pickup starting point to 10 for new placements
+        if start_id is None:
+            start_id = 10
+
+        if start_id == end_id:
+            return [start_id]
+
+        from collections import deque
+
+        queue = deque([[start_id]])
+        visited = {start_id}
+
+        while queue:
+            path = queue.popleft()
+            current = path[-1]
+
+            if current == end_id:
+                return path
+
+            # Unpack current X (column) and Y (row)
+            cx = current // 10
+            cy = current % 10
+
+            # Explore 4-directional neighbors (Right, Left, Down, Up)
+            for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
+                nx, ny = cx + dx, cy + dy
+
+                # Boundary rule: Allow normal 1-7 grid OR the horizontal y=0 movement ceiling
+                if (1 <= nx <= 7 and 1 <= ny <= 7) or (1 <= nx <= 7 and ny == 0):
+                    next_id = nx * 10 + ny
+
+                    if next_id not in visited:
+                        is_blocked = False
+
+                        # Obstruction check for physical pieces on the board
+                        if next_id in self.board and self.board[next_id].player is not None:
+                            # Land safely on the target even if it contains an enemy piece to be removed
+                            if next_id != end_id:
+                                is_blocked = True
+
+                        if not is_blocked:
+                            visited.add(next_id)
+                            queue.append(path + [next_id])
+
+        return None  # Return None if completely trapped/blocked
+
 
 if __name__ == "__main__":
     pass
