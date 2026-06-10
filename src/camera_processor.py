@@ -155,7 +155,7 @@ def detectCircles(frame):
         # Accumulator threshold for the circle centers (lower = more circles detected)
         param2=30,
         minRadius=10,  # Minimum circle radius to detect
-        maxRadius=100  # Maximum circle radius to detect
+        maxRadius=40  # Maximum circle radius to detect
     )
 
     # 5. Check if any circles were found
